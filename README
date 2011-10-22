@@ -1,0 +1,1298 @@
+sfDoctrineExtraPlugin
+=====================
+
+The sfDoctrineExtraPlugin is a plugin for symfony 1.4 that contains many extra
+doctrine behaviours.
+
+Includes:
+
+  * Blameable
+  * EventLoggable
+  * GoogleI18n
+  * Localizable
+  * Sortable
+  * Taggable
+  * Temporal
+
+Blameable
+=========
+
+The `Blameable` extension is a behaviour which adds an additional level of auditing capabilities to any model you want.  In an environment with many users, Blameable allows you to track who created or last updated any model which has the Blameable behaviour enabled.  Blameable is a great companion to Timestampable and is the icing on the cake to the Timestampable / Versionable / SoftDelete trifecta of paranoia.
+
+Enable Blameale
+---------------
+
+You can enable blaming on any given model simply by adding the `Blameable` behaviour using the `actAs` functionality in your models. Blameable can work `out of the box` using it's default options, however many options are supported.
+
+Below is an example of where we enable it on a simple BlogPost model.
+
+    [yml]
+    BlogPost:
+      actAs: [Blameable]
+      columns:
+        title:
+          type: string(255)
+          notnull: true
+        description:
+          type: string(255)
+          notnull: true
+
+Now when the model is generated two columns, created_by and updated_by, will automatically be added.  By default the values for the columns will be taken from the `userId` index in either the $_SESSION or $_GLOBALS array, depending on how the script which created or modifies the model was run, a webserver or the CLI, respectively.
+
+Options
+-------
+
+Blameable can work quite well based on its default options, however you might want more a customized model, this is where the power of the Blameable options come into play.
+
+Much like Timestampable, you can control each created and updated columns name, alias, type, length, and options. You can totally disable either of the columns if you don't want to audit that particular attribute of the model, for instance, if you are modeling something that immutable, you could disable the updated column since that particular model will never be changed as a result of its nature.
+
+Blameable's other options control
+
+  * the blameVar, the index in the $_SESSION or $_GLOBALS array which stores the user data
+  * the Blameable Listener
+  * the default value if the blameVar isn't available
+
+## Options
+
+  *listener*
+
+  Default: `Doctrine_Template_Blameable_Listener`
+  
+  The Blameable listener controls where the user data is retrieved from to be used in the created and updated columns.  If your user management is handled differently, perhaps with a third party plugin, you can create your own listener to work with. 
+  >**Note**
+  >custom listeners must be a subclass of Doctrine_Template_Blameable_Listener
+
+  *blameVar*
+
+  Default: `userId`
+  
+  The blameVar is the index of the user data in the $_SESSION or $_GLOBALS array.
+
+  *default*
+
+  Default: false
+  
+  The default value to be used if user data is unavailable. The value of default can be either Doctrine DQL or a literal value.
+
+  If the default value is Doctrine DQL then the blameVar is used to access the user data from the retrieve result set.
+  >**Note**
+  >the Blameable listener retrieves a single record (fetchOne)
+
+  If the default value is a literal value, then that literal value is used as the user data
+
+  *params*
+  
+  Default: array()
+
+  The parameters to be sent to the DQL query used as the default value
+
+### Column Options
+
+  *name*
+
+  Default: created => `created_by` , updated => `updated_by`
+
+  The name of the column that is created by Blameable
+
+  *alias*
+
+  Default: null
+
+  The alias that Doctrine will refer to the column as
+
+  *type*
+
+  Default: integer
+
+  The type of the column
+
+  *length*
+
+  Default: 8
+
+  The length of the column
+
+  *options*
+
+  Default: array('notnull' => true)
+
+  The column options
+
+  *disabled*
+
+  Default: false
+
+  If the column will be added to the model
+
+  *onInsert*
+
+  Default: true
+
+  If the column will be set when the model is first saved to the database.
+  >**Note**
+  >this option is only available for the updated column
+
+### Relation Options
+
+  *name*
+  
+  Default: created => `CreatedBy`, updated => `UpdatedBy`
+  
+  The name of the relation to be added to the model
+  
+  *class*
+  
+  Default: User
+  
+  The Doctrine class of the relation
+  
+  *foreign*
+  
+  Default: id
+  
+  The column name in the foreign relation
+  
+  *disabled*
+  
+  Default: true
+  
+  If the relation will be added to the model
+
+
+EventLoggable
+=============
+
+The `EventLoggable` is a simple behavior to log events on your models and connections. It can be enabled like the following.
+
+    [yml]
+    User:
+      actAs:
+        EventLoggable:
+          events: [preDelete, preQuery]
+          logger:
+            type: file
+            path: /path/to/logfile.log
+      columns:
+        username: string(255)
+        password: string(255)
+
+Now when you execute some code it will log the events which you have specified.
+
+    Array
+    (
+        [method] => preDelete
+        [name] => delete record
+        [code] => 21
+        [skipped] => 
+        [time] => 
+        [query] => 
+        [params] => Array
+            (
+            )
+
+        [invoker] => Array
+            (
+                [id] => 1
+                [name] => ok
+            )
+
+    )
+    
+If you don't specify any array of events then all events will be logged.
+
+GoogleI18n
+==========
+
+This is the introduction to the GoogleI18n Doctrine extension which gives you extra 
+functionality on top of the I18n behavior to automatically translate your data 
+using Google. Below you will find all the documentation on how to install and 
+use the GoogleI18n extension.
+
+Usage
+-----
+
+Using the `GoogleI18n` behavior is simple. You save a record and automatically translates all the values using the Google translation API.
+
+Define our model that uses the behavior included.
+
+    [php]
+    class GoogleTranslateArticle extends Doctrine_Record
+    {
+        public function setTableDefinition()
+        {
+            $this->hasColumn('name', 'string', 255);
+            $this->hasColumn('title', 'string', 255);
+            $this->hasColumn('description', 'string', 255);
+        }
+
+        public function setUp()
+        {
+            $this->actAs('Sluggable', array('fields' => array('name')));
+            $this->actAs('GoogleI18n', array(
+                'languages' => array(
+                    'en', 'fr', 'es', 'ja', 'it'),
+                'fields' => array(
+                    'title','description'
+                )
+            ));
+        }
+    }
+
+Now we can use it like the following.
+    
+    [php]
+    $article = new GoogleTranslateArticle();
+    $article->name = 'Testing this out';
+    $article->Translation['en']->title = 'Hello, how are you?';
+    $article->Translation['en']->description = 'Good evening';
+    $article->save();
+
+    print_r($article->toArray());
+
+Now that article would output the following.
+
+    Array
+    (
+        [id] => 1
+        [name] => Testing this out
+        [slug] => testing-this-out
+        [Translation] => Array
+            (
+                [en] => Array
+                    (
+                        [id] => 1
+                        [title] => Hello, how are you?
+                        [description] => Good evening
+                        [lang] => en
+                    )
+
+                [fr] => Array
+                    (
+                        [id] => 1
+                        [title] => Bonjour, comment allez-vous?
+                        [description] => Bonsoir
+                        [lang] => fr
+                    )
+
+                [es] => Array
+                    (
+                        [id] => 1
+                        [title] => Hola, cÃ³mo estÃ¡s?
+                        [description] => Buenas tardes
+                        [lang] => es
+                    )
+
+                [ja] => Array
+                    (
+                        [id] => 1
+                        [title] => ã“ã‚“ã«ã¡ã¯ã€ãŠå…ƒæ°—ã§ã™ã‹ï¼Ÿ
+                        [description] => ã“ã‚“ã°ã‚“ã¯
+                        [lang] => ja
+                    )
+
+                [it] => Array
+                    (
+                        [id] => 1
+                        [title] => Ciao, come stai?
+                        [description] => Buona sera
+                        [lang] => it
+                    )
+
+            )
+
+    )
+
+Localizable
+===========
+
+This is the introduction to the Localizable Doctrine extension which gives you  
+functionality to convert units of measurement or any other conversions desirable. 
+Below you will find all the documentation on how to install and use the Locatable 
+extension.
+
+Usage
+-----
+
+Using the `Localizable` behavior is simple. If you specify the value for a specific field
+identified as localizable, you can immediately get all the conversions available for that
+field.
+
+Define our model that uses the behavior included.
+
+    [php]
+    class LocalizableUnit extends Doctrine_Record
+    {
+        public function setTableDefinition()
+        {
+            $this->hasColumn('name', 'string', 255);
+        }
+
+        public function setUp()
+        {
+            $this->actAs('Localizable', array(
+                'fields' => array(
+                  'distance' => 'KM'),
+            ));
+        }
+    }
+
+This essentially creates a field on your model, and specifies the unit of measurement
+to save to the database.  This is important for precision reasons.
+Now we can use it like the following.
+    
+    [php]
+    $unit = new LocatableUnit();
+    $article->name      = "Testing this out";
+    $article->length    = 15;  // sets unit to 15 KM
+    echo $article->length['KM']; // outputs '15'
+    echo $article->length['MI'];  // outputs '9.32056'
+    
+    $article->length['M']    = 1000; // you can set the value for any unit
+    echo $article->length;        // outputs '1', still outputs in kilometers
+    echo $article->length['ft'];  // outputs '3 280.8399'
+    echo $article->length->ft;    // outputs '3 280.8399', Property accessors also work
+         
+    $article->save();             // the value '1' will be saved to the database
+
+    print_r($article->toArray());
+
+Now that article would output the following.
+
+  Array
+  (
+      [id] => 1
+      [name] => Testing this out
+      [length_km] => 1
+  )
+
+As many fields can act as localizable as you need.  You can also pass a conversion array in your declaration to add
+unsupported conversions
+
+    [php]
+    class LocalizableUnit extends Doctrine_Record
+    {
+        public function setTableDefinition()
+        {
+            $this->hasColumn('name', 'string', 255);
+        }
+
+        public function setUp()
+        {
+            $this->actAs('Localizable', array(
+                'fields' => array(
+                  'distance' => 'KM'),
+                'conversions' => array(
+                  'nautical_miles' => array('km' => 1.85200, 'mi' => 1.15077945),
+                  'km'  => array('nautical_miles' => .539956803),
+                  'mi'  => array('nautical_miles' => .868976242)),
+            ));
+        }
+    }
+    
+    $unit = new LocatableUnit();
+    $article->name      = "Testing this out";
+    $article->length    = 15;  // sets unit to 15 KM
+    echo $article->length->nautical_miles; // outputs '8.09935205'
+    
+The conversion array passed to the behavior supports conversion from miles and kilometers to nautical miles and vice versa.
+
+You can also use the `LocalizableConverter` object to perform conversions outside of the extension
+
+    [php]
+    $converter = new LocalizableConverter($additional_conversions);
+    $celcius = $converter->convert($fahrenheit, 'F', 'C');
+    $gallons = $liters * $converter->getConversion('L', 'GAL');
+    
+
+Locatable
+=========
+
+This is the introduction to the Locatable Doctrine extension which gives you  
+functionality using the Google Maps API to automatically populate your model 
+with latitude and longitide information using Google. Below you will find all 
+the documentation on how to install and use the Locatable extension.
+
+Usage
+-----
+
+Using the `Locatable` behavior is simple. You save a record and the extension automatically populates your latitude and longitude fields using the Google Maps API.
+
+Define our model that uses the behavior included.
+
+    [php]
+    class LocatableArticle extends Doctrine_Record
+    {
+        public function setTableDefinition()
+        {
+            $this->hasColumn('name', 'string', 255);
+            $this->hasColumn('address', 'string', 255);
+            $this->hasColumn('body', 'clob');
+        }
+
+        public function setUp()
+        {
+            $this->actAs('Sluggable', array('fields' => array('name')));
+            $this->actAs('Locatable', array(
+                'fields' => array(
+                  'address', 'city', 'state', 'postal'),
+            ));
+        }
+    }
+
+Now we can use it like the following.
+    
+    [php]
+    $article = new LocatableArticle();
+    $article->name      = "Centre{source} Interactive Agency";
+    $article->body      = "Centre{source} is a great place to work!  I just work on Doctrine Extensions all day."
+    $article->address   = '1313 4th Ave North'
+    $article->city      = 'Nashville'    
+    $article->state     = 'TN'        
+    $article->postal    = '37208'            
+    $article->save();
+
+    print_r($article->toArray());
+
+Now that article would output the following.
+
+  Array
+  (
+      [id] => 1
+      [name] => Centre{source} Interactive Agency
+      [body] => Centre{source} is a great place to work!  I just work on Doctrine Extensions all day.
+      [address] => 1313 4th Ave North
+      [city] => Nashville
+      [state] => TN
+      [zip] => 37208
+      [latitude] => 36.1778040
+      [longitude] => -86.7885080
+  )
+
+You can chose which field or fields to use to search by.  If you leave all but one fields blank, only that field will be used to look up the location.
+
+Sortable
+========
+
+This is the introduction to the Sortable Doctrine extension which gives you sortable functionality to your models when enabled. Below you will find all the documentation on how to install and use the Sortable extension.
+
+Taggable
+========
+
+The `Taggable` extension is a behavior which adds Tagging capabilities to any 
+models you want. You have the ability set, add and remove tags from any model 
+where the included `Taggable` behavior is enabled.
+
+Enable Tagging
+--------------
+
+You can enable tagging on any given model simply by adding the `Taggable` 
+behavior using the `actAs` functionality in your models.
+
+Below is an example where we enable it on a simple `BlogPost` model.
+
+    [yml]
+    BlogPost:
+      actAs: [Taggable]
+      columns:
+        title:
+          type: string(255)
+          notnull: true
+        description:
+          type: string(255)
+          notnull: true
+
+Now when we build our models we will instantly have some new functionality 
+available that we can utilize to set the tags a record has by simply specifying 
+a comma separated list of tags.
+
+Enabling this behavior will create a model named `BlogPostTaggableTag` and use it as a `refClass` to create a many to many relationship between `BlogPost` and `TaggableTag`.
+
+> **NOTE**
+> The `TaggableTag` model is auto generated for you internally by Doctrine and it is a simple model with is an `id` and a `name`.
+
+Managing Tags
+-------------
+
+We can manage the tags a record has by using a few simple functions.
+
+* setTags() - Set the tags by specifying a list of tags separated by commas.
+* addTags() - Add new tags to the existing set of tags by specifying a list of tags separated by commas.
+* removeTags() - Remove tags from the existing set of tags by specifying a list of tags separated by commas.
+* removeAllTags() - Remove all tags from the existing record.
+
+Below we'll show examples of how you can utilize each of the above methods described.
+
+++ Set Tags
+
+You can easily set the tags by using the `setTags()` method. This method completely removes any existing tags then adds the tags you've specified. Below is an example.
+
+    [php]
+    $post = new BlogPost();
+    $post->title = 'This is a sample blog post';
+    $post->description = 'Cool!';
+    $post->setTags('2009, symfony, doctrine');
+    $post->save();
+
+Now internally setting that tags string would create any `TaggableTag` records that don't already exist in the database, and it would synchronize the associations between the `BlogPost` and the `TaggableTag` records. It would be similar to doing something like this manually with Doctrine.
+
+    [php]
+    $post = new BlogPost();
+    $post->title = 'This is a sample blog post';
+    $post->description = 'Cool!';
+    $post->Tags[]->name = '2009';
+    $post->Tags[]->name = 'symfony';
+    $post->Tags[]->name = 'doctrine';
+    $post->save();
+
+The only difference is that the `setTags()` method makes sure that no duplicates are entered and will create the `TaggableTag` record only if it doesn't already exist.
+
+++ Adding Tags
+
+I can add to the existing set of tags by using the `addTags()` method.
+
+    [php]
+    $post->addTags('new tag, sympal');
+    $post->save();
+
+This will not affect any existing tag associations. It will only add new tags to the `BlogPost`.
+
+++ Removing Tags
+
+Now if we wanted to remove an existing tag we can simply use the `removeTags()` method.
+
+    [php]
+    $post->removeTags('sympal');
+    $post->save();
+
+++ Removing all Tags
+
+Sometimes you may want to simply remove all the tags from a record. This can be done by using the `removeAllTags()` method.
+
+    [php]
+    $post->removeAllTags();
+    $post->save();
+
+> **NOTE**
+> All of the above methods of managing your tags don't persist the changes to the database until you call the `save()` method. Internally this method is adding new `TaggableTag` instances to the collection of `Tags` in the relationship. So the collection is not saved until you call `save()`.
+
+Get Popular Tags
+----------------
+
+Sometimes you may want to get all the tags that are the most popular across your content. This can be done easily enough by using the `Doctrine_Table` method named `getPopularTags()`.
+
+> **NOTE**
+> This method doesn't actually exist on any class that extends `Doctrine_Table`. It is made available to the `TaggableTagTable` instance via use of PHPs magic `__call()` method.
+
+    [php]
+    $tags = Doctrine::getTable('TaggableTag')->getPopularTags();
+
+This returns a `Doctrine_Collection` of `TaggableTag` instances with some additional aggregate data which calculates the number of time the tags have been used across all models, and how many times it has been used total across all models. The names of the added keys for our examples are the following.
+
+* num_blog_post
+* total_num
+
+By default the `getPopular()` tags methods returns the count for all models the behavior is enabled on. If you want to limit the models it returns results for then you can specify a single model to get the popular tags for or an array of models.
+
+If you had the behavior enabled on multiple models. For example two other models named `Photo` and `Bookmark`. You could get the popular tags for one of the single model.
+
+    [php]
+    $tags = Doctrine::getTable('TaggableTag')->getPopularTags('Photo');
+
+Or if you wanted to get the tags for multiple models you can specify an array.
+
+    [php]
+    $tags = Doctrine::getTable('TaggableTag')->getPopularTags(array('BlogPost', 'Photo'));
+
+If you want to simply get a sorted array of popular tags where the `key` is the `name` of the tag and the value is the number of times it has been used.
+
+    [php]
+    $tags = Doctrine::getTable('TaggableTag')->getPopularTagsArray();
+
+All of the above mentioned methods accept the same arguments.
+
+* $relations - An array of relationships to return the tags for. If you don't specify anything it will default to all models that use the behavior.
+* $limit - The number of tags to limit the results for.
+
+The `getPopularTags()` method accepts an additional third argument `$hydrationMode` that defaults to `Doctrine::HYDRATE_RECORD`.
+
+Temporal
+========
+
+The `Temporal` extension is a behavior which adds Temporal (time-oriented) support for your model class.
+
+The main change that you will notice when adding this behavior is that your table has two additional columns defined, eff_date and exp_date. 
+Used on their own with no extra work, these columns are useful for logging - but other features for date-based queries, row versioning, 
+and temporal key constraints make managing temporal data fairly easy.
+
+Enabling Temporal Behavior
+--------------------------
+
+You can enable the temporal behavior on any given model simply by adding `Temporal` as an actAs option.
+
+Below is an example model named `Subscription` to which we will add the Temporal behavior.
+
+    [yml]
+    Subscription:
+        actAs: [Temporal]
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            customer_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+
+Now when we build our models we will have the effective and expiration columns added, 
+plus some handy functions for date-based queries, row versioning, and temporal key constraints.
+
+Options
+-------
+
+Let's add some options to our configuration.
+
+++ Preventing Modifications to Past Data
+
+Let's say we want to keep historical (past) records exactly as they were on the date they were active, 
+so that our reporting system always has an accurate view of the past.
+
+    [yml]
+    Subscription:
+        actAs: 
+            Temporal:
+                allow_past_modifications:   false
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            group_id:           # the user group that the subscription is assigned to
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            licenses:
+                type:           integer(2)
+                unsigned:       true
+                notnull:        true
+
+If allow_past_modifications is set to `false`, your model will only allow changes to be made in the future. 
+If you write code that tries to save data with an eff_date in the past, the save() call will fail.
+
+++ Temporal Uniqueness
+
+Let's say we want to force our groups to only have one concurrent subscription to any given product at the same time.
+If the group wishes to subscribe to additional licenses, 
+then we want to force them to increment their license count instead of ordering a new subscription.
+
+
+To accomplish this, let's add a Temporally Unique Constraint to our model.
+
+    [yml]
+    Subscription:
+        actAs: 
+            Temporal:
+                allow_past_modifications:   false
+                unique_fields:              [group_id, product_id]
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            group_id:           # the user group that the subscription is assigned to
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            licenses:
+                type:           integer(2)
+                unsigned:       true
+                notnull:        true
+
+By adding the unique_fields option to our model, we are now enforcing the rule that 
+"No two records can have the same group_id and product_id at the same time". 
+In other words, we are defining those fields as unique at every point in time.
+
+This means that a group can cancel a subscription, wait a month, and create a new subscription later for the same product. 
+In this case, there would be two accurate and valid records with the same group_id and product_id 
+(meaning that we cannot use a database-level unique index to enforce this rule). 
+However, if a group tried to add a second subscription for a product they already have, 
+the unique constraint would prevent the record from being saved. 
+
+++ Temporal Foreign Keys
+
+    [yml]
+    Subscription:
+        actAs: 
+            Temporal:
+                allow_past_modifications:   false
+                unique_fields:              [group_id, product_id]
+                children:                   [LicenseAssignments]
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            group_id:           # the user group that the subscription is assigned to
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            licenses:
+                type:           integer(2)
+                unsigned:       true
+                notnull:        true
+        relations:
+            LicenseAssignments:
+                class:          LicenseAssignment
+                local:          id
+                foreign:        subscription_id
+                foreignAlias:   Subscription
+                type:           many
+    LicenseAssignment:
+        actAs:
+            Temporal:
+                allow_past_modifications:   false
+                parents:                    [Subscription]
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            customer_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            subscription_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+
+We have made a few changes here:
+
+* Created the LicenseAssignment model, to keep track of which licenses are assigned to which customers.
+* Created the LicenseAssignments relationship between Subscription and LicenseAssignment
+* Identified this relationship as a temporal parent/temporal child by indicating the `children` and `parents` options for the two models.
+
+Now, in addition to the foreign key constraints already enforced between these models, 
+Doctrine will enforce two temporal foreign key constraints. 
+This means that the valid dates for a given child model MUST fall within its temporal parents - 
+in this case, a LicenseAssignment record must have its eff_date and exp_date set within the eff_date and exp_date of its parent Subscription record, 
+identified by the `Subscription` relation. 
+
+> **NOTE**
+> The two temporal relations are defined separately (`parents` and `children`), and the two constraints are enforced separately, 
+> simply because the code was easier to write that way. 
+> Maybe some day the model generator will be smart enough to generate the reverse constraints but not yet. 
+> For now, the relationships must be defined in both directions. (see "Development Direction")
+
+++ Shift Neighbors on Save
+
+Let's say we want to define some temporally unique columns for our LicenseAssignment model, 
+but we don't want to deal with the hassle of failed save() calls when those constraints are violated. 
+In other words, sometimes we will be assigning license assignments in the future that may overlap with existing records - 
+but we want our system to "push" the existing records aside to make room for the new ones.
+
+
+    [yml]
+    LicenseAssignment:
+        actAs:
+            Temporal:
+                allow_past_modifications:   false
+                parents:                    [Subscription]
+                unique_fields:              [customer_id, subscription_id]
+                shift_neighbors_on_save:    true
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            customer_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            subscription_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+
+We have done two things here:
+
+* Added temporal uniqueness on [customer_id, subscription_id] so that no customer can have more than one license to a given subscription at any given time
+* By setting the shift_neighbors_on_save option to `true`, we are telling the Temporal extension that when a new record is saved that violates the temporally unique constraint of [customer_id, subscription_id], the existing record(s) should be modified so that the new one can fit into the timeline.
+
+For instance, a customer has a license assignment record for the future - let's say 2025-01-01 through 2025-02-01. 
+Then the system tries to save an additional license assignment for the same customer/subscription combination, 
+for 2025-01-15 through 2025-02-15. Instead of throwing an temporal uniqueness exception, 
+the new record is saved and the original record is modified so that it expires on 2025-01-15.
+
+++ Other Options
+
+Here is an example of the remaining three options:
+
+    [yml]
+    LicenseAssignment:
+        actAs:
+            Temporal:
+                allow_past_modifications:   false
+                parents:                    [Subscription]
+                type:                       time    # either 'date' or 'time'
+                eff_date:                   effective_date
+                exp_date:                   expiration_date
+
+* eff_date and exp_date: Set these values to whatever column names you would like to use in your model for effective & expiration dates
+* type: set to 'date' to use DATE as the data type. All comparisons will be done using dates, irrespective of any time interval. 
+Set to 'time' (or any other value) to use DATETIME as the data type, so that comparisons use time of day (in seconds). The default is 'date'.
+
+> **NOTE**
+> All date values are given as strings in standard SQL format(s). When your field uses the DATE datatype, 
+> date values are given as strings in the pattern used when calling `date('Y-m-d')`, or `'YYYY-MM-DD'` (for instance `'2010-01-15'`).
+> For the DATETIME, TIMESTAMP, or equivalent datatypes, values are given as strings in the pattern used 
+> when calling `date('c')`, or `'YYYY-MM-DDTHH:MM:SSTZOFFSET'` (for instance `'2010-01-15T15:43:12-08:00'`).
+
+> **NOTE**
+> Setting the `type` option to any value other than `date` will result in time-based comparisons (in seconds).
+
+++ Temporally Segmented Objects
+
+These options apply only to the `TemporallySegmentedObject` template:
+
+    [yml]
+    Subscription:
+        actAs: 
+            TemporallySegmentedObject:
+                parent_alias:               Subscription
+                child_alias:                SubscriptionSegments
+                segment_eff_date:           effective_date
+                segment_exp_date:           expiration_date
+                segment_date_type:          time
+
+
+* parent_alias: use this option to override the default alias for the parent relation (default is `Parent`)
+* child_alias: use this option to override the default alias for the child relation (default is `Segments`)
+* segment_eff_date, segment_exp_date: same as `eff_date` and `exp_date`, but they apply to the auto-generated segment model
+* segment_date_type: same as `type`, but applies to the auto-generated segment model
+
+Temporal Segmented Objects
+--------------------------
+
+Dealing with Temporal data will very soon lead to this common problem:
+
+* A child (LicenseAssignments) points to a parent (Subscription) with a temporal parent/child relationship.
+* The parent starts in the past (eff_date < $today)
+* The parent is modified - for instance, the subscription license count is incremented
+
+Since the parent starts in the past, a new temporal segment must be created:
+
+    [php]
+    $new_segment = $subscription->createNewTemporalSegment(); // NOTE: this returns a Subscription object.
+    $new_segment->licenses++;
+    $new_segment->save();
+
+Now we have two Subscription records that conceptually refer to the same subscription, and the license assignments will have to be carried forward manually:
+
+    [php]
+    foreach ($subscription->LicenseAssignments as $la) {
+        $new_la = new LicenseAssignment();
+        $new_la->setArray(array(
+            'customer_id'       => $la->customer_id,
+            'subscription_id'   => $la->subscription_id,
+            'eff_date'          => $new_segment->eff_date,
+            'exp_date'          => $new_segment->exp_date,
+        ));
+        $new_la->save();
+    }
+
+Additionally, this code would have to handle exceptions for things like past dates, overlaps, etc. as well as any other custom logic
+for the model it is dealing with. The code gets hairy pretty fast! 
+This problem can be described as the consequence of not satisfying the rule that "one record should represent one real-world entity". 
+When multiple records represent the same object, normalization is broken and maintenance and integrity issues multiply.
+
+To retain normalization without modifying past records, the "Temporally Segmented Object" database pattern should be followed.
+This pattern is described by Martin Fowler at [http://martinfowler.com/ap2/temporalObject.html](http://martinfowler.com/ap2/temporalObject.html).
+When implementing this pattern in Doctrine, use the TemporallySegmentedObject behavior, which is an extension of the standard Temporal behavior.
+
+Here is the subscription model, modified to take advantage of the TSO pattern (refer to 'Options' for the original yml spec):
+
+> **NOTE**
+> To take advantage of Temporal Segment features, the relationship from the parent to the child must be named `Segments`. 
+
+    [yml]
+    Subscription:
+        actAs: 
+            TemporallySegmentedObject:
+                allow_past_modifications:   false
+                unique_fields:              [group_id, product_id]
+                children:                   [LicenseAssignments]
+                parent_alias:               Subscription
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            group_id:           # the user group that the subscription is assigned to
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            licenses:
+                type:           integer(2)
+                unsigned:       true
+                notnull:        true
+        relations:
+            LicenseAssignments:
+                class:          LicenseAssignment
+                local:          id
+                foreign:        subscription_id
+                foreignAlias:   Subscription
+                type:           many
+
+The TemporallySegmentedObject template will do a few things for you automatically:
+
+* Split the Subscription model in two: Subscription and SubscriptionSegment
+* Add primary and foreign keys to SubscriptionSegment
+* Move the `licenses` field into SubscriptionSegment, so that Subscription only has fields that define temporal uniqueness. (`licenses` is the only field which is neither a `primary` column, or a member of the `unique_fields` array)
+* Add a `Segments` relationship from Subscription to SubscriptionSegment, and add a `Subscription` relationship from SubscriptionSegment to Subscription, and define them as temporal parent/temporal child (see 'Options' for more info on this concept)
+
+The two models generated by the TemporallySegmentedObject template are equivalent to:
+
+    [yml]
+    Subscription:
+        actAs: 
+            Temporal:
+                allow_past_modifications:   false
+                unique_fields:              [group_id, product_id]
+                children:                   [LicenseAssignments, Segments]
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            group_id:           # the user group that the subscription is assigned to
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+        relations:
+            LicenseAssignments:
+                class:          LicenseAssignment
+                local:          id
+                foreign:        subscription_id
+                foreignAlias:   Subscription
+                type:           many
+            Segments:
+                class:          SubscriptionSegment
+                local:          id
+                foreign:        subscription_id
+                foreignAlias:   Subscription    # NOTE: this name is set using the 'parent_alias' config option in the TemporallySegmentedObject template.
+                type:           many
+                cascade:        [delete]
+    SubscriptionSegment:
+        actAs:                 
+            Temporal:
+                unique_fields:              [subscription_id]
+                parents:                    [Subscription]
+                allow_past_modifications:   false
+                shift_neighbors_on_save:    true
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            subscription_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            licenses:
+                type:           integer(2)
+                unsigned:       true
+                notnull:        true
+
+Now, we can increment the license count without affecting existing license assignments - even though the subscription had started in the past:
+
+    [php]
+    $current_segment = $subscription->createNewTemporalSegment(); // NOTE: this returns a SubscriptionSegment object.
+    $new_segment->licenses++;
+    $new_segment->save();
+
+We have just made the same change as before, but in this case the Subscription record remains untouched and we do not need to move or copy any LicenseAssignment records. 
+A new SubscriptionSegment is created to handle the changed license count and the existing SubscriptionSegment is modified automatically during createNewTemporalSegment().
+
+Examples
+--------
+
+We'll use these models for our examples:
+
+    [yml]
+    Subscription:
+        actAs: 
+            Temporal:
+                allow_past_modifications:   false
+                unique_fields:              [group_id, product_id]
+                children:                   [LicenseAssignments, Segments]
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            group_id:           # the user group that the subscription is assigned to
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            product_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+        relations:
+            LicenseAssignments:
+                class:          LicenseAssignment
+                local:          id
+                foreign:        subscription_id
+                foreignAlias:   Subscription
+                type:           many
+            Segments:
+                class:          SubscriptionSegment
+                local:          id
+                foreign:        subscription_id
+                foreignAlias:   Subscription
+                type:           many
+                cascade:        [delete]
+    SubscriptionSegment:
+        actAs:                 
+            Temporal:
+                unique_fields:              [subscription_id]
+                parents:                    [Subscription]
+                allow_past_modifications:   false
+                shift_neighbors_on_save:    true
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            subscription_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            licenses:
+                type:           integer(2)
+                unsigned:       true
+                notnull:        true
+    LicenseAssignment:
+        actAs:
+            Temporal:
+                allow_past_modifications:   false
+                parents:                    [Subscription]
+                unique_fields:              [customer_id, subscription_id]
+                shift_neighbors_on_save:    true
+        columns:
+            id:
+                type:           integer(10)
+                unsigned:       true
+                primary:        true
+                autoincrement:  true
+            customer_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+            subscription_id:
+                type:           integer(10)
+                unsigned:       true
+                notnull:        true
+
+++ Creating Temporal Records
+
+    [php]
+    // create a subscription for 2012
+    $sub = new Subscription();
+    $sub->eff_date = '2012-01-01';
+    $sub->exp_date = '2013-01-01';
+    $sub->product_id = 1;
+    $sub->group_id = 1;
+    $sub->save();
+    
+    // create a subscription for 2013
+    $sub = $sub->copy();
+    $sub->eff_date = '2013-01-01';
+    $sub->exp_date = '2014-01-01';
+    $sub->save();
+    
+    // create a subscription for 2014
+    $sub = $sub->copy();
+    $sub->eff_date = '2014-01-01';
+    $sub->exp_date = '2015-01-01';
+    $sub->save();
+
+++ Querying Data
+
+To run a query on a specific date (where all Temporal records are filtered by their effective and expiration dates), use the Doctrine_Temporal_Query object instead of the normal Doctrine_Query:
+    
+    [php]
+    $group_id = 1;
+    $q = Doctrine_Temporal_Query::create('2013-06-01') // do the query with a state-of-the-world on this date
+        ->from      ('Subscription s')
+        ->innerJoin ('s.Segments ss')
+        ->where     ('s.group_id = ?', $group_id);
+    $sub = $q->execute(); // only returns the 2013 subscription
+
+Currently, Doctrine_Temporal_Query only subclasses a few Doctrine_Query calls: `execute(), fetchArray(), fetchOne(), count()`.
+
+++ Traversing Temporal Neighbors
+    
+To find neighbors backward & forward in time, use the `getPrevious()` and `getNext()` functions. These functions will look for a record with matching temporal uniqueness, where the records' temporal periods abut each other.
+
+    [php]
+    // $sub is the 2013 record from the above example
+    $sub2012 = $sub->getPrevious(); // returns the record whose exp_date equals $sub->eff_date
+    $sub2014 = $sub->getNext(); // returns the record whose exp_date equals $sub->eff_date
+
+++ Creating Temporal Segments (i.e. updating records on a specific date)
+
+Let's say $current_sub is a `Subscription` that started last year, and is currently active. It has never been updated, so it has a single related `SubscriptionSegment` record with the same effective date. We want to add a license to it, but we can't modify the past. In order to make this update, we must create a new temporal segment:
+
+    [php]
+    $current_segment = $current_sub->getCurrentSegment();
+    $new_segment = $current_segment->createNewTemporalSegment();
+        // automatically saves $current_segment with an exp_date of today.
+        // automatically saves $new_segment with an eff_date of today, and the exp_date originally set on $current_segment.
+    $new_segment->licenses++;
+    $new_segment->save();
+
+++ Checking for Uniqueness
+
+Sometimes you'll want to make sure you won't get a temporally unique exception before saving a record,
+or sometimes you will actually want to do some meaningful work with records that overlap with a record you're working with in-memory.
+For this example, let's assume we have the three records from the above example saved in the database (`Subscription`s from 2012, 2013 and 2014).
+
+    [php]
+    // create a subscription record in-memory that overlaps with existing records
+    $sub = new Subscription();
+    // product & group have the same temporal uniqueness as our example subscriptions
+    $sub->product_id = 1; 
+    $sub->group_id = 1;
+    // dates overlap the 2012 subscription
+    $sub->eff_date = '2012-06-01';
+    $sub->exp_date = '2012-07-01';
+    $overlapping_sub = $sub->getOverlappingRecords(); // returns array containing the 2012 subscription
+    $number_overlapping = $sub->getOverlappingRecords(true); // returns integer '1'
+
+++ Extending Dates
+
+Let's say we extend the expiration date of a subscription, and we want to automatically extend the last segment to match.
+We might also want to extend any `LicenseAssignment`s attached to the subscription.
+We can do this easily by using `extendChildDates()`:
+
+    [php]
+    // $sub is the 2013 record from the above example
+    $sub->exp_date = '2014-02-01'; // extend the subscription by 1 month
+    $sub->save(); // after the save, any LicenseAssignment and SubscriptionSegment records will still end on 2014-01-01
+    $sub->extendChildDates(); // extends temporal children and saves
+    
+The last function call will find any temporal children (`LicenseAssignment` and `SubscriptionSegment` records) 
+whose effective or expiration date had been equal to their parent's and,
+if the parent's value has changed, updating the child values to match.
+In this case, any `LicenseAssignment` or `SubscriptionSegment` records attached to this subscription with an expiration date of 2014-01-01
+will be updated to 2014-02-01.
+
+++ Time Comparison Functions
+
+All temporal records will also have attached to them comparison functions
+
+    [php]
+    // $sub is the 2013 record from the above example
+    $sub->containsDate('2012-05-01'); // false
+    $sub->containsDate('2013-05-01'); // true
+    $sub->endsBeforeDate('2013-05-01'); // false
+    $sub->endsBeforeDate('2014-05-01'); // true
+    $sub->containsPeriod(new TimePeriod('2012-05-01', '2013-05-01')); // false
+    $sub->containsPeriod(new TimePeriod('2013-05-01', '2013-06-01')); // true
+    $sub->begins(new TimePeriod('2013-05-01', '2013-06-01')); // false
+    $sub->begins(new TimePeriod('2013-01-01', '2013-06-01')); // true
+    $sub->ends(new TimePeriod('2013-05-01', '2013-06-01')); // false
+    $sub->ends(new TimePeriod('2013-05-01', '2014-01-01')); // true
+
+These functions are actually implemented in the `Doctrine_Temporal_TimePeriod` object, and proxied through the `Temporal` behavior.
+
+How Date Comparisons are Made
+-----------------------------
+
+The rule of date comparisons can be simplified as such: $effective_date <= $any_valid_date < $expiration_date. 
+That is, an expiration date of today means that the record had expired at midnight last night, and is therefore inactive. 
+However, an effective date of today means that it became active on midnight, and therefore is active.
+
+I'll say the same thing with more detail. Date comparisons are made using the following pattern, 
+where $search_date is a given date by which you're querying your model:
+    
+    [php]
+    if ($search_date < $expiration_date) {
+        // record is NOT expired
+    }
+    if ($search_date >= $expiration_date) {
+        // record IS expired
+    }
+    if ($search_date < $effective_date) {
+        // record is NOT active yet
+    }
+    if ($search_date >= $expiration_date) {
+        // record HAS become active
+    }
+
+There are a few reasons for doing this:
+
+* Temporal neighbors are easy to find ($left->exp_date == $right->eff_date)
+* No addition/subtraction needs to be done when creating new temporal segments
+** $new->eff_date = date('Y-m-d', date_add($old->exp_date, new DateInterval('+1 day')))
+** vs.
+** $new->eff_date = $old->exp_date
+* Terminating records is intuitive ($record->exp_date = $today)
+* Creating new records is intuitive ($record->eff_date = $today)
+
+Development Direction
+---------------------
+
+++ Automatically Create Reciprocal Parent/Child Relationships
+
+When defining a `parents` or `children` option for a temporal model, the reciprocal relationship is not created automatically. 
+If a developer does not explicitly define the reciprocal relationship, then the temporal foreign key will only be enforced during a save() call on one side of the relation,
+but not on the other.
+
+For instance, if LicenseAssignment has a parent of Subscription, but Subscription does not have LicenseAssignments listed as a child relation, 
+then calling $license_assignment->save() will trigger the temporal foreign key constraint check, but calling $subscription->save() will not.
+
+++ Known Issues
+
+* The TemporallySegmentedObject generator will fail if the Base class php file for the segments of a table (BaseTableNameSegment.php)
+is deleted, and the concrete class file (TableNameSegment.php) still exists. This is a rather obscure scenario, since the model
+generator handles all the Base*.php files and it is unnecessary to manually delete them, and it is also uncommon to need to modify your Segment classes.
+
+

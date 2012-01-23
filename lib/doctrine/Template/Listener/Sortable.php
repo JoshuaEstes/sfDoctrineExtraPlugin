@@ -1,42 +1,122 @@
 <?php
-/*
- *  $Id$
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the LGPL. For more information, see
- * <http://www.phpdoctrine.org>.
- */
+
 
 /**
- * Doctrine_Template_Listener_Sortable
+ * Easily sort each record based on position
  *
- * @package     Doctrine
- * @author      Jonathan H. Wage <jonwage@gmail.com>
+ * @package     csDoctrineSortablePlugin
+ * @subpackage  listener
  * @license     http://www.opensource.org/licenses/lgpl-license.php LGPL
- * @category    Object Relational Mapping
  * @link        www.phpdoctrine.org
- * @since       1.2
+ * @since       1.0
  * @version     $Revision$
+ * @author      Travis Black <tblack@centresource.com>
  */
 class Doctrine_Template_Listener_Sortable extends Doctrine_Record_Listener
 {
-    public function postInsert(Doctrine_Event $event)
+  /**
+   * Array of sortable options
+   *
+   * @var array
+   */
+  protected $_options = array();
+
+
+  /**
+   * __construct
+   *
+   * @param array $options
+   * @return void
+   */
+  public function __construct(array $options)
+  {
+    $this->_options = $options;
+  }
+
+
+  /**
+   * Set the position value automatically when a new sortable object is created
+   *
+   * @param Doctrine_Event $event
+   * @return void
+   */
+  public function preInsert(Doctrine_Event $event)
+  {
+    $fieldName = $this->_options['name'];
+    $object = $event->getInvoker();
+    $object->$fieldName = $object->getFinalPosition()+1;
+  }
+
+  /**
+   * When a sortable object is updated, check to see if any of the uniqueBy
+   * fields are modified before saving to prevent two items having the same
+   * position.
+   *
+   * @param string $Doctrine_Event
+   * @return void
+   */
+  public function preUpdate(Doctrine_Event $event) {
+    $fieldName = $this->_options['name'];
+    $object = $event->getInvoker();
+    $modified = $object->getModified();
+
+    //-- Check to see if any of the uniqueBy fields have been modified
+    foreach ($this->_options['uniqueBy'] as $field)
     {
-        if ($event->getInvoker()->position === null) {
-            $event->getInvoker()->position = $event->getInvoker()->id;
-            $event->getInvoker()->save();
-        }
+      if ( array_key_exists($field, $modified) ) {
+        //-- Move it to the end
+        $object->$fieldName = $object->getFinalPosition()+1;
+        break;
+      }
     }
+  }
+
+  /**
+   * When a sortable object is deleted, promote all objects positioned lower than itself
+   *
+   * @param string $Doctrine_Event
+   * @return void
+   */
+  public function postDelete(Doctrine_Event $event)
+  {
+    $fieldName = $this->_options['name'];
+    $object    = $event->getInvoker();
+    $position  = $object->$fieldName;
+    $conn      = $object->getTable()->getConnection();
+
+    // Create query to update other positions
+    $q = $object->getTable()->createQuery()
+                            ->where($fieldName . ' > ?', $position)
+                            ->orderBy($fieldName);
+
+    foreach ($this->_options['uniqueBy'] as $field)
+    {
+      $q->addWhere($field . ' = ?', $object[$field]);
+    }
+
+    if ($this->canUpdateWithOrderBy($conn))
+    {
+      $q->update(get_class($object))
+        ->set($fieldName, $fieldName . ' - ?', '1')
+        ->execute();
+    }
+    else
+    {
+      foreach ( $q->execute() as $item )
+      {
+        $pos = $item->get($this->_options['name'] );
+        $item->set($this->_options['name'], $pos-1)->save();
+      }
+    }
+  }
+
+  // some drivers do not support UPDATE with ORDER BY
+  protected function canUpdateWithOrderBy(Doctrine_Connection $conn)
+  {
+    // If transaction level is greater than 1,
+    // query will throw exceptions when using this function
+    return $conn->getTransactionLevel() < 2 &&
+      // some drivers do not support UPDATE with ORDER BY query syntax
+      $conn->getDriverName() != 'Pgsql' && $conn->getDriverName() != 'Sqlite';
+  }
 }

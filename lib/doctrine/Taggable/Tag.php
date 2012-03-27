@@ -35,7 +35,7 @@ class Doctrine_Taggable_Tag extends Doctrine_Record_Generator
 {
     protected $_options = array(
         'className'      => 'TaggableTag',
-        'generateFiles'  => false,
+        'generateFiles'  => true,
         'table'          => false,
         'pluginTable'    => false,
         'children'       => array(),
@@ -45,6 +45,7 @@ class Doctrine_Taggable_Tag extends Doctrine_Record_Generator
 
     public function __construct(array $options = array())
     {
+        $this->_options['generatePath'] = sfConfig::get('sf_lib_dir') . '/model/doctrine';
         $this->_options = Doctrine_Lib::arrayDeepMerge($this->_options, $options);
     }
 

@@ -39,7 +39,7 @@ class Doctrine_Template_Taggable extends Doctrine_Template
         'tagAlias'      => 'Tags',
         'className'     => '%CLASS%TaggableTag',
         'toString'      => false,
-        'generateFiles' => false,
+        'generateFiles' => true,
         'table'         => false,
         'pluginTable'   => false,
         'children'      => array()
@@ -47,6 +47,7 @@ class Doctrine_Template_Taggable extends Doctrine_Template
 
     public function __construct(array $options = array())
     {
+        $this->_options['generatePath'] = sfConfig::get('sf_lib_dir') . '/model/doctrine';
         $this->_options = Doctrine_Lib::arrayDeepMerge($this->_options, $options);
         $this->_plugin = new Doctrine_Taggable($this->_options);
     }
